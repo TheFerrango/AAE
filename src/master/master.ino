@@ -3,16 +3,11 @@
  programma scritto da Lotto Lorenzo e Lotto Alessandro
  */
 
-#include <LiquidCrystal.h>
-#include <EthernetUdp.h>
-#include <util.h>
-#include <Dhcp.h>
-#include <EthernetClient.h>
-#include <EthernetServer.h>
 #include <Ethernet.h>
+#include <EthernetUdp.h>
+#include <LiquidCrystal.h>
 #include <SPI.h>
 #include <string.h>
-
 #include <Timer.h>
 
 // timer manager
@@ -32,11 +27,17 @@ int RingTone = 0;
 boolean masterDoorStatus[nDevices][12];
 boolean masterAuxStatus[nDevices][4];
 
-
 // indici di supporto per il metodo smarzone di refresh
 // non bloccante del display
 
 int devIndexDoor, senIndexDoor, devIndexAux, senIndexAux;
+
+// Definizione componenti ethernet
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+IPAddress ip(192, 168,1,100);
+unsigned int listeningPort = 1701;
+EthernetUDP Udp;
+char udpMsg[UDP_TX_PACKET_MAX_SIZE];
 
 
 /* 
@@ -44,8 +45,8 @@ int devIndexDoor, senIndexDoor, devIndexAux, senIndexAux;
     assegnando i valori alle matrici di supporto
     contenenti lo stato generale del sistema
 */
-void parseInputSeq(String s)
-{
+void parseInputSeq(String s) {
+	
 	int device, pin;
 	boolean newStatus;
 	char type;
@@ -55,6 +56,11 @@ void parseInputSeq(String s)
 	newStatus = s.substring(6,7).toInt();
 	type = s[2];
 	
+	if(s[6] == '1')
+		Serial.write("Evento apertura");
+	else
+		Serial.write("Evento chiusura");
+	
 	if(type == 'D')
 		masterDoorStatus[device][pin] = newStatus;
 	else
@@ -63,13 +69,62 @@ void parseInputSeq(String s)
 }
 
 
-void ProgressDisplay()
-{
+/*
+	aggiorna gli eventi critici mostrati sulla seconda
+	riga del display lcd
+*/
+void UpdateEvents() {
+	
+	int begDev = devIndexAux;
+	int begSen = senIndexAux;
+	boolean found = false;
+	do
+	{
+		lcd.setCursor(0,1);   
+		if (masterAuxStatus[devIndexAux][senIndexAux])
+		{
+			lcd.print("                ");
+			lcd.setCursor(0,1);   
+			switch (senIndexAux)
+                {
+                case 0:
+                    lcd.print("BATTERIA SCARICA");
+                case 1:
+                    lcd.print("APERTURA SENSORE");
+                case 2:
+                    lcd.print("PERDITA SENSORE");
+                }
+			found = true;			
+		}
+		
+		senIndexAux++;
+		if(senIndexAux == 4)
+		{
+			senIndexAux = 0;
+			devIndexAux = (devIndexAux+1 )% nDevices;
+		}
+		
+		if(found)
+			break;		
+	}
+	while(begDev != devIndexAux || begSen != senIndexAux);
+	
+	if(!found)
+		lcd.print("Nessun evento   ");
+}
+
+
+/*
+	aggiorna gli eventi porta mostrati sulla prima prima
+	riga del display lcd
+*/
+void UpdateDoors() {
+	
 	int begDev = devIndexDoor;
 	int begSen = senIndexDoor;
+	boolean found = false;
 	do
-	{				
-		boolean found = false;
+	{
 		lcd.setCursor(0,0);   
 		if (masterDoorStatus[devIndexDoor][senIndexDoor])
 		{
@@ -78,7 +133,7 @@ void ProgressDisplay()
 			lcd.print("Cen ");
 			lcd.print(devIndexDoor);
 			lcd.print(" - porta ");
-			lcd.print(senIndexDoor);			
+			lcd.print(senIndexDoor);	
 			//digitalWrite(38, HIGH);
 			found = true;			
 		}
@@ -91,25 +146,41 @@ void ProgressDisplay()
 		}
 		
 		if(found)
-			break;
-		
+			break;		
 	}
 	while(begDev != devIndexDoor || begSen != senIndexDoor);
-	lcd.print("Nessun evento   ");
+	
+	if(!found)
+		lcd.print("Nessun evento   ");
 }
+
+
+/*
+	richiama le funzioni di aggiornamento del
+	display lcd
+*/
+void ProgressDisplay() {
+	UpdateDoors();
+	UpdateEvents();
+}
+
 
 /*
 	inizializzazione delle strutture dati e delle
 	componenti hardware utilizzate
 */
-void setup()
-{
+void setup() {
+	
 	// inizializzazione display
     lcd.begin(16, 2);
 
 	// collocamento cursore in 0,0 e stampa
     lcd.setCursor(0,0);                       
     lcd.print("Inizializzazione");
+	
+	// inizializzazione scheda Ethernet
+	Ethernet.begin(mac, ip);
+	Udp.begin(listeningPort);
 	
 	//inizializzazione delle matrici di stati a spento
     for(int i = 0; i < nDevices; i++)
@@ -137,22 +208,23 @@ void setup()
 	parseInputSeq("C1D06S1");
 	parseInputSeq("C1D05S1");
 	parseInputSeq("C0D03S1");
-	parseInputSeq("C1A35S1");
+	//parseInputSeq("C1A35S1");
 	
+	//avvio del timer per l'aggiornamento del display
 	t.every(5000, ProgressDisplay);
 	
-	//clearScreen();
 	lcd.clear();
 	// apro console seriale per vedere lo stato ingresso
     Serial.begin(9600);                        
 }
 
 
-void loop()
-{
+void loop() {
+	
+	//richiamo il metodo di aggiornamento dei timer
 	t.update();
+	
 	/*
-		TODO: leggi da ethernet per un pacchetto UDP.
 		FORMATO: C<#centrale><D -> porta; A -> Aux><#pin>S<0 -> rientro allarme; 1 -> allarme>
 	
 		"C2D04S1" significa quindi:
@@ -160,65 +232,12 @@ void loop()
 	
 	*/    
 	
-	//gestione della visualizzazione eventi relativa alle singole porte
-	//per ogni centralina
-  /*  boolean noDev = true;
-	for(int i = 0; i < nDevices; i++)
+	//ricezione pacchetto udp e aggiornamento matrice se necessario
+	if(Udp.parsePacket())
 	{
-		for (int j=0; j<12; j++)
-		{			
-			lcd.setCursor(0,0);   
-			if (masterDoorStatus[i][j])
-			{
-				lcd.print("                ");
-				lcd.setCursor(0,0);   
-				lcd.print("Cen ");
-				lcd.print(i);
-				lcd.print(" - porta ");
-				lcd.print(j);
-				noDev = false;
-				//digitalWrite(38, HIGH);
-				delay (5000);
-				
-			}
-		}
-		if(noDev)
-			lcd.print("Nessun evento   ");
+		Serial.write("Ho ricevuto");
+		Udp.read(udpMsg, UDP_TX_PACKET_MAX_SIZE);
+		Serial.write (udpMsg);
+		parseInputSeq(String(udpMsg));
 	}
-	
-	//gestione della visualizzazione eventi ausiliari
-	//per ogni centralina
-	boolean noAlert = true;
-	for(int i = 0; i < nDevices; i++)
-	{		
-		for (int j=0; j<4; j++)
-		{			
-			lcd.setCursor(0,1);   
-			if (masterAuxStatus[i][j])
-			{
-				lcd.print("                ");
-				lcd.setCursor(0,1);  
-				switch (j)
-                {
-                case 0:
-                    lcd.print("BATTERIA SCARICA");
-                case 1:
-                    lcd.print("APERTURA SENSORE");
-                case 2:
-                    lcd.print("PERDITA SENSORE");
-                }
-				delay (1000);
-				noAlert = false;				
-			}
-		}
-		if(noAlert)
-			lcd.print("Nessun evento   ");
-	}*/
-	
-	lcd.setCursor(0,1);   
-	lcd.print("                ");
-	lcd.setCursor(0,1);  
-	lcd.print(senIndexAux);
-	delay(100);
-	senIndexAux++;
 }

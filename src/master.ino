@@ -13,8 +13,14 @@
 #include <SPI.h>
 #include <string.h>
 
+#include <Timer.h>
+
+// timer manager
+Timer t;
+
 // definizioni di costanti statiche qui
 #define nDevices 2
+#define senForDev 12
 
 // Definizione dei pin utilizzati dal display lcd
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);    
@@ -27,17 +33,10 @@ boolean masterDoorStatus[nDevices][12];
 boolean masterAuxStatus[nDevices][4];
 
 
-/*
-	Pulisce il pannello LCD da testo residuo.
-	Il cursore va ricollocato dopo l'uso
-*/
-void clearScreen()
-{
-	lcd.setCursor(0,0);  
-	lcd.print("                ");
-	lcd.setCursor(0,1);  
-	lcd.print("                ");
-}
+// indici di supporto per il metodo smarzone di refresh
+// non bloccante del display
+
+int devIndexDoor, senIndexDoor, devIndexAux, senIndexAux;
 
 
 /* 
@@ -64,6 +63,41 @@ void parseInputSeq(String s)
 }
 
 
+void ProgressDisplay()
+{
+	int begDev = devIndexDoor;
+	int begSen = senIndexDoor;
+	do
+	{				
+		boolean found = false;
+		lcd.setCursor(0,0);   
+		if (masterDoorStatus[devIndexDoor][senIndexDoor])
+		{
+			lcd.print("                ");
+			lcd.setCursor(0,0);   
+			lcd.print("Cen ");
+			lcd.print(devIndexDoor);
+			lcd.print(" - porta ");
+			lcd.print(senIndexDoor);			
+			//digitalWrite(38, HIGH);
+			found = true;			
+		}
+		
+		senIndexDoor++;
+		if(senIndexDoor == senForDev)
+		{
+			senIndexDoor = 0;
+			devIndexDoor = (devIndexDoor+1 )% nDevices;
+		}
+		
+		if(found)
+			break;
+		
+	}
+	while(begDev != devIndexDoor || begSen != senIndexDoor);
+	lcd.print("Nessun evento   ");
+}
+
 /*
 	inizializzazione delle strutture dati e delle
 	componenti hardware utilizzate
@@ -86,6 +120,9 @@ void setup()
 			masterAuxStatus[i][j] = false;
 	}	
 	
+	//inizializzazione indici per display
+	devIndexDoor = senIndexDoor = devIndexAux = senIndexAux = 0;
+	
 	//finta progressbar all'avvio
 	lcd.setCursor(0,1);
 	for(int i = 0; i < 16; i++)
@@ -102,8 +139,10 @@ void setup()
 	parseInputSeq("C0D03S1");
 	parseInputSeq("C1A35S1");
 	
-	clearScreen();
+	t.every(5000, ProgressDisplay);
 	
+	//clearScreen();
+	lcd.clear();
 	// apro console seriale per vedere lo stato ingresso
     Serial.begin(9600);                        
 }
@@ -111,7 +150,7 @@ void setup()
 
 void loop()
 {
-	
+	t.update();
 	/*
 		TODO: leggi da ethernet per un pacchetto UDP.
 		FORMATO: C<#centrale><D -> porta; A -> Aux><#pin>S<0 -> rientro allarme; 1 -> allarme>
@@ -123,7 +162,7 @@ void loop()
 	
 	//gestione della visualizzazione eventi relativa alle singole porte
 	//per ogni centralina
-    boolean noDev = true;
+  /*  boolean noDev = true;
 	for(int i = 0; i < nDevices; i++)
 	{
 		for (int j=0; j<12; j++)
@@ -174,5 +213,12 @@ void loop()
 		}
 		if(noAlert)
 			lcd.print("Nessun evento   ");
-	}
+	}*/
+	
+	lcd.setCursor(0,1);   
+	lcd.print("                ");
+	lcd.setCursor(0,1);  
+	lcd.print(senIndexAux);
+	delay(100);
+	senIndexAux++;
 }

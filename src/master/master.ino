@@ -1,6 +1,7 @@
-/* agosto 2013 gestione porte San Patrignano
- esempio di programma per gestire display, ingressi e porta eth
- programma scritto da Lotto Lorenzo e Lotto Alessandro
+/* 
+	agosto 2013 gestione porte San Patrignano
+	esempio di programma per gestire display, ingressi e porta eth
+	programma scritto da Lotto Lorenzo e Lotto Alessandro
  */
 
 #include <Ethernet.h>
@@ -10,17 +11,18 @@
 #include <string.h>
 #include <Timer.h>
 
-// timer manager
-Timer t;
 
 // definizioni di costanti statiche qui
 #define nDevices 2
 #define senForDev 12
 
+// timer manager
+Timer t;
+
 // Definizione dei pin utilizzati dal display lcd
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);    
 
-// badenia
+// sirena
 int RingTone = -1;
 
 // matrici di supporto per lo stato generale
@@ -29,7 +31,6 @@ boolean masterAuxStatus[nDevices][4];
 
 // indici di supporto per il metodo smarzone di refresh
 // non bloccante del display
-
 int devIndexDoor, senIndexDoor, devIndexAux, senIndexAux;
 
 // Definizione componenti ethernet
@@ -37,34 +38,98 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168,1,100);
 unsigned int listeningPort = 1701;
 EthernetUDP Udp;
-char udpMsg[UDP_TX_PACKET_MAX_SIZE];
 
+
+
+/*
+	imposta l'identificatore del timer della sirena a -1
+ 	e spegne la sirena impostando il pin 38 a 0 logico
+ */
+void TurnOffAlert() {
+  RingTone = -1;
+  digitalWrite(38, LOW);
+}
+
+
+/*
+	in caso di stringa di spegnimento di una centrale,
+ 	effettua il reset degli stati relativi alla centrale
+ 	indicata e controlla gli stati delle altre centrali.
+ 	Se almeno una di queste ha un evento in corso ritorna true,
+ 	altrimenti false
+ */
+boolean execReset(String s) {
+
+  // ottiene l'indice del device
+  int device = s.substring(1,2).toInt();
+
+  // imposta a 0 gli stati della centrale indicata
+  for(int i = 0; i < senForDev; i++)
+  {
+    masterDoorStatus[device][i] = 0;
+  }
+  for(int i = 0; i < 4; i++)
+  {
+    masterAuxStatus[device][i] = 0;
+  }
+
+  // effettua il controllo sulle altre centrali
+  for(int j = 0; j < nDevices; j++)
+  {
+    if(device == j)
+      continue;
+    for(int i = 0; i < senForDev; i++)
+    {
+      if(masterDoorStatus[j][i])
+        return true;
+    }
+
+    for(int i = 0; i < 4; i++)
+    {
+      if(masterAuxStatus[j][i])
+        return true;
+    }
+  }
+
+  return false;
+}
 
 /* 
-	decodifica una stringa ricevuta da un pacchetto UDP
-	assegnando i valori alle matrici di supporto
-	contenenti lo stato generale del sistema
+ 	decodifica una stringa ricevuta da un pacchetto UDP
+ 	assegnando i valori alle matrici di supporto
+ 	contenenti lo stato generale del sistema
  */
 void parseInputSeq(String s) {
 
   int device, pin;
   boolean newStatus;
-  char type;
+  char type;  
 
-  device = s.substring(1,2).toInt();
-  pin = s.substring(3,5).toInt();
-  newStatus = s.substring(6,7).toInt();
-  type = s[2];
-
-  if(s[6] == '1')
-    Serial.write("Evento apertura");
+  if(s.substring(2,7) == "SUPPR")
+  {
+    if(!execReset(s))
+    {
+      t.stop(RingTone);
+      TurnOffAlert();
+    }
+  }
   else
-    Serial.write("Evento chiusura");
+  {	  
+    device = s.substring(1,2).toInt();
+    pin = s.substring(3,5).toInt();
+    newStatus = s.substring(6,7).toInt();
+    type = s[2];
 
-  if(type == 'S')
-    masterDoorStatus[device][pin] = newStatus;
-  else
-    masterAuxStatus[device][pin] = newStatus;
+    if(s[6] == '1')
+      Serial.write("Evento apertura");
+    else
+      Serial.write("Evento chiusura");
+
+    if(type == 'S')
+      masterDoorStatus[device][pin] = newStatus;
+    else
+      masterAuxStatus[device][pin] = newStatus;
+  }
 }
 
 
@@ -132,8 +197,7 @@ void UpdateDoors() {
       lcd.print("Cen ");
       lcd.print(devIndexDoor);
       lcd.print(" - porta ");
-      lcd.print(senIndexDoor);	
-      //digitalWrite(38, HIGH);
+      lcd.print(senIndexDoor);	      
       found = true;			
     }
 
@@ -164,6 +228,7 @@ void ProgressDisplay() {
 }
 
 
+
 /*
 	inizializzazione delle strutture dati e delle
  	componenti hardware utilizzate
@@ -181,7 +246,7 @@ void setup() {
   Ethernet.begin(mac, ip);
   Udp.begin(listeningPort);
 
-  //inizializzazione delle matrici di stati a spento
+  // inizializzazione delle matrici di stati a spento
   for(int i = 0; i < nDevices; i++)
   {
     for(int j = 0; j < 12; j++)
@@ -190,13 +255,14 @@ void setup() {
       masterAuxStatus[i][j] = false;
   }
 
-  //inizializzazione indici per display
+  // inizializzazione indici per display
   devIndexDoor = senIndexDoor = devIndexAux = senIndexAux = 0;
 
-  //impostazione del pin di output collegato alla sirena
+  // impostazione del pin di output collegato alla sirena
   pinMode (38, OUTPUT);
+  digitalWrite(38, LOW);
 
-  //finta progressbar all'avvio
+  // finta progressbar all'avvio
   lcd.setCursor(0,1);
   for(int i = 0; i < 16; i++)
   {
@@ -204,61 +270,57 @@ void setup() {
     delay(300);
   }
 
-  //sequenze di input fake usate per test
-  parseInputSeq("C0S04S1");
-  parseInputSeq("C0S11S1");
-  parseInputSeq("C1S06S1");
-  parseInputSeq("C1S05S1");
-  parseInputSeq("C0S03S1");
-  //parseInputSeq("C1A35S1");
-
-  //avvio del timer per l'aggiornamento del display
+  // avvio del timer per l'aggiornamento del display
   t.every(5000, ProgressDisplay);
 
-  lcd.clear();
+  // stampa del logo aziendale
+  lcd.setCursor(0,0);            
+  lcd.print("LOTTO GIANNI   ");
+  lcd.setCursor(0,1);
+  lcd.print("IMP. ELETTRICI ");
+
   // apro console seriale per vedere lo stato ingresso
   Serial.begin(9600);                        
 }
 
 
+/*
+	metodo di loop richiamato costantemente dal 
+ 	microcontrollore
+ */
 void loop() {
 
-  //richiamo il metodo di aggiornamento dei timer
+  // richiamo il metodo di aggiornamento dei timer
   t.update();
 
 
-  //TODO: leggere stato 1 della chiave
+  // TODO: leggere stato 1 della chiave se il visualizzatore ne ha una
 
 
-  /*
-		FORMATO: C<#centrale><S -> Sensore; A -> Aux><#pin>S<0 -> rientro allarme; 1 -> allarme>
-   	
-   		"C2D04S1" significa quindi:
-   		Centrale: 2, Porta: 4, Stato: allarme
-   	
-   	*/
-
-  //ricezione pacchetto udp e aggiornamento matrice se necessario
+  // ricezione pacchetto udp e aggiornamento matrice se necessario
   if(Udp.parsePacket())
   {
+    char udpMsg[UDP_TX_PACKET_MAX_SIZE];
     Serial.write("Ho ricevuto");
     Udp.read(udpMsg, UDP_TX_PACKET_MAX_SIZE);
     Serial.write (udpMsg);
 
     if(udpMsg[6] == '1')
     {
-      //se la sirena è già accesa resetta il timer della sirena
-      //fermandolo e ricreandolo
+      // se la sirena è già accesa resetta il timer della sirena
+      // fermandolo e ricreandolo
       if(RingTone != -1)
         t.stop(RingTone);
 
-      //imposta il pin collegato alla sirena ad 1 Logico per 5 minuti
-      RingTone = t.pulse(38, 5 * 60 * 1000, HIGH);
+      // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
+      digitalWrite(38, HIGH);
+      RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
     }
 
-    //decodifica del messaggio ricevuto per permettere la
-    //visualizzazione degli eventi
-    parseInputSeq(String(udpMsg));
+    // decodifica del messaggio ricevuto per permettere la
+    // visualizzazione degli eventi
+    parseInputSeq(String(udpMsg));	
   }
 }
+
 

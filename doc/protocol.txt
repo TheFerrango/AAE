@@ -1,0 +1,17 @@
+Protocollo per lo scambio di dati tra centrali
+e unità di visualizzazione
+
+MESSAGGIO EVENTO:
+
+C<#centrale><S -> Sensore; A -> Aux><#pin>S<0 -> rientro allarme; 1 -> allarme>
+
+ex.
+"C2S04S1" -> Centrale: 2, Sensore: 4, Stato: allarme
+
+
+'SPEGNIMENTO' CENTRALE:
+
+C<#centrale>SUPPR
+
+ex.
+"C2SUPPR" -> Centrale:2, soppressione allarmi

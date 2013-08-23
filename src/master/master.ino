@@ -1,7 +1,7 @@
 /* 
-	agosto 2013 gestione porte San Patrignano
-	esempio di programma per gestire display, ingressi e porta eth
-	programma scritto da Lotto Lorenzo e Lotto Alessandro
+ 	agosto 2013 gestione porte San Patrignano
+ 	esempio di programma per gestire display, ingressi e porta eth
+ 	programma scritto da Lotto Lorenzo e Lotto Alessandro
  */
 
 #include <Ethernet.h>
@@ -34,7 +34,8 @@ boolean masterAuxStatus[nDevices][4];
 int devIndexDoor, senIndexDoor, devIndexAux, senIndexAux;
 
 // Definizione componenti ethernet
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+byte mac[] = { 
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168,1,100);
 unsigned int listeningPort = 1701;
 EthernetUDP Udp;
@@ -152,11 +153,14 @@ void UpdateEvents() {
       switch (senIndexAux)
       {
       case 0:
-        lcd.print("BATTERIA SCARICA");
+        lcd.print("BATTERIA SCARICA"); 
+        break;
       case 1:
-        lcd.print("APERTURA SENSORE");
+        lcd.print("APERTURA SENSORE"); 
+        break;
       case 2:
-        lcd.print("PERDITA SENSORE");
+        lcd.print("PERDITA SENSORE"); 
+        break;
       }
       found = true;			
     }
@@ -293,10 +297,6 @@ void loop() {
   // richiamo il metodo di aggiornamento dei timer
   t.update();
 
-
-  // TODO: leggere stato 1 della chiave se il visualizzatore ne ha una
-
-
   // ricezione pacchetto udp e aggiornamento matrice se necessario
   if(Udp.parsePacket())
   {
@@ -322,5 +322,4 @@ void loop() {
     parseInputSeq(String(udpMsg));	
   }
 }
-
 

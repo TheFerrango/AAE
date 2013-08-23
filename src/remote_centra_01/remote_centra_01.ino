@@ -12,14 +12,12 @@
 
 // Definizione delle costanti
 #define senForDev 12
-#define currentDevice 0
+#define currentDevice 1
 
 // timer manager
 Timer t;
 
 //  define lcd pin, status doors, input pins, badenia, switch pins 
-
-
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 int DoorValue[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 int DoorPin[12] = { 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
@@ -33,7 +31,7 @@ boolean blocked = false;
 // Definizione componenti ethernet
 // mac locale: 0xEF   -   first remote device .101
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEF };
-IPAddress ip(192, 168,1,101), server(192, 168, 1, 100);
+IPAddress ip(192, 168, 1, 102), server(192, 168, 1, 100);
 unsigned int listeningPort = 1701;
 EthernetUDP Udp;
 char udpMsg[UDP_TX_PACKET_MAX_SIZE];
@@ -51,9 +49,9 @@ void TurnOffAlert() {
 
 
 /*	
-	aggiorna gli eventi porta mostrati sulla prima prima
+ 	aggiorna gli eventi porta mostrati sulla prima prima
  	riga del display lcd  
-*/
+ */
 void UpdateDoors() {
 
   int begSen = senIndexDoor;
@@ -85,6 +83,10 @@ void UpdateDoors() {
 }
 
 
+/*
+	aggiorna gli eventi critici mostrati sulla seconda
+ 	riga del display lcd
+ */
 void UpdateEvents() {
 
   int begSen = senIndexAux;
@@ -99,11 +101,14 @@ void UpdateEvents() {
       switch (senIndexAux)
       {
       case 0:
-        lcd.print("BATTERIA SCARICA");
+        lcd.print("BATTERIA SCARICA"); 
+        break;
       case 1:
-        lcd.print("APERTURA SENSORE");
+        lcd.print("APERTURA SENSORE"); 
+        break;
       case 2:
-        lcd.print("PERDITA SENSORE");
+        lcd.print("PERDITA SENSORE"); 
+        break;
       }
       found = true;			
     }
@@ -121,62 +126,89 @@ void UpdateEvents() {
 }
 
 
+/*
+	richiama le funzioni di aggiornamento del
+ 	display lcd
+ */
 void ProgressDisplay() {
   UpdateDoors();
   UpdateEvents();
 }
 
 
+/*
+        sends an UDP packet to the defined server, providing
+ informations on sensor status changes
+ */
 void SendUdpMessage(int sensor, char type, int senStatus) {
 
-  char msg[6];
-  String s = "C"+ currentDevice + type;
+  char msg[8] = "\0";
+  String s = "C" + String(currentDevice) + type;
+  //	msg[1] = currentDevice
   if(sensor < 10)
-    s+= "0";
-  s+=String(sensor) + "S" + String(senStatus);
-	
-  s.toCharArray(msg, 6);
-  
+    s = s + "0";
+  s = s + sensor + "S"+ senStatus;
+  s.toCharArray(msg, 8);
+
   Udp.beginPacket(server, listeningPort);
   Udp.write(msg);
-  Udp.endPacket();
+  Udp.endPacket();	
+
+  delay(100);
 }
 
+
+/*
+        sends an UDP packet to the defined server, providing
+ reset information for the current station
+ */
 void SendUdpReset() {
 
-  char msg[6];
+  char msg[8] = "\0";
   String s = "C"+ String(currentDevice) + "SUPPR";	
-  s.toCharArray(msg, 6);
-  
+  s.toCharArray(msg, 8);
+
   Udp.beginPacket(server, listeningPort);
   Udp.write(msg);
   Udp.endPacket();
+
+  delay(100);
 }
 
+
 void setup() {
+
+  // apro console seriale per vedere lo stato ingresso
+  Serial.begin(9600);
 
   // inizializzo il display
   lcd.begin(16, 2);              
 
-  // finta progressbar all'avvio	
-  lcd.setCursor(1,0);            
+  // collocamento cursore in 0,0 e stampa
+  lcd.setCursor(0,0);                       
+  lcd.print("Inizializzazione");
+
+  // inizializzazione scheda Ethernet
+  Ethernet.begin(mac, ip);
+  Udp.begin(listeningPort);
+
+  // finta progressbar all'avvio	  
+  lcd.setCursor(0,1);            
   for(int i = 0; i < 16; i++)
   {
     lcd.print("*");
     delay(300);
   }
 
-
   // stampa logo aziendale
   lcd.setCursor(0,0);            
   lcd.print("LOTTO     GIANNI");
   lcd.setCursor(0,1);
-  lcd.print("IMP.   ELETTRICI");
-  delay (5000);
+  lcd.print("IMP.   ELETTRICI");  
 
   // ciclo per la dichiarazione degli ingressi di stato delle porte
   for (int i=0; i<senForDev; i++)         
-    pinMode (DoorPin[i], INPUT);
+    pinMode (DoorPin[i], INPUT);  
 
   // ciclo per la dichiarazione degli ingressi ausiliari
   for (int i=0; i<3; i++)          
@@ -184,34 +216,43 @@ void setup() {
 
   // impostazione del pin di controllo della sirena
   pinMode (38, OUTPUT);
+  digitalWrite(38, LOW);
 
-  
   // impostazione del pin chiave
-  pinMode (37, INPUT);
+  pinMode (37, INPUT); 
 
-  t.every(2000, ProgressDisplay);
+  t.every(5000, ProgressDisplay);
 
-  // apro console seriale per vedere lo stato ingresso
-  Serial.begin(9600);
 }
 
+
 void loop() {
-  
+
+  // richiamo il metodo di aggiornamento dei timer
   t.update();
-	
-  int tmpKey = digitalRead(37);
-  if(tmpKey)
-  {
-	if(tmpKey != blocked)
-	{
-	  SendUdpReset();
-	}
+  int tmpKey = digitalRead(37);  
+
+  // in caso di blocco volontario della centrale, visualizza
+  // un messaggio e ignora gli allarmi
+  if(tmpKey == HIGH)
+  {	
+    if(tmpKey != blocked)
+    {
+      SendUdpReset();
+    }
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Blocco manuale");
+    lcd.setCursor(0,1);
+    lcd.print("in corso.");
+    delay(1000);
   }
   else
   {
-    for (int i=0; i<senForDev; i++)
-    { 
+    for (int i=0; i<12; i++)
+    { 	
       int Tmp = digitalRead(DoorPin[i]);
+
       if (Tmp != DoorValue[i])
       {
         if(Tmp == HIGH)
@@ -224,17 +265,20 @@ void loop() {
           // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
           digitalWrite(38, HIGH);
           RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
-			
+
         }
+
         SendUdpMessage(i, 'S', Tmp);
+        DoorValue[i] = Tmp;
       }
     }  
-  
+
     for (int i=0; i<3; i++)
     {
       int Tmp = digitalRead(auxPin[i]);  
+
       if (Tmp != auxValue[i])
-      {
+      {  
         if(Tmp == HIGH)
         {
           //se la sirena è già accesa resetta il timer della sirena
@@ -244,10 +288,16 @@ void loop() {
 
           //imposta il pin collegato alla sirena ad 1 logico per 5 minuti
           RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
-        }
-        SendUdpMessage(i, 'A', Tmp);
-      }
+
+        }		
+        
+        SendUdpMessage(i, 'A', Tmp);        
+        auxValue[i] = Tmp;
+      }	  
     }
   }
+
   blocked = tmpKey;
 }
+
+

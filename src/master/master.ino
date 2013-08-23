@@ -275,9 +275,9 @@ void setup() {
 
   // stampa del logo aziendale
   lcd.setCursor(0,0);            
-  lcd.print("LOTTO GIANNI   ");
+  lcd.print("LOTTO     GIANNI");
   lcd.setCursor(0,1);
-  lcd.print("IMP. ELETTRICI ");
+  lcd.print("IMP.   ELETTRICI");
 
   // apro console seriale per vedere lo stato ingresso
   Serial.begin(9600);                        

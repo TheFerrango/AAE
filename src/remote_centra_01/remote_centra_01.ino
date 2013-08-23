@@ -23,12 +23,12 @@ Timer t;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 int DoorValue[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 int DoorPin[12] = { 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
-int auxPin[4] = { 34, 35, 36, 37 };
-int auxValue[4] = { 0, 0, 0, 0 };
+int auxPin[4] = { 34, 35, 36 };
+int auxValue[4] = { 0, 0, 0 };
 int RingTone = -1;
 int senIndexDoor = 0;
 int senIndexAux = 0;
-
+boolean blocked = false;
 
 // Definizione componenti ethernet
 // mac locale: 0xEF   -   first remote device .101
@@ -38,6 +38,16 @@ unsigned int listeningPort = 1701;
 EthernetUDP Udp;
 char udpMsg[UDP_TX_PACKET_MAX_SIZE];
 
+
+
+/*
+	imposta l'identificatore del timer della sirena a -1
+ 	e spegne la sirena impostando il pin 38 a 0 logico
+ */
+void TurnOffAlert() {
+  RingTone = -1;
+  digitalWrite(38, LOW);
+}
 
 
 /*	
@@ -99,7 +109,7 @@ void UpdateEvents() {
     }
 
     senIndexAux++;
-    if(senIndexAux == 4)
+    if(senIndexAux == 3)
       senIndexAux = 0;
     if(found)
       break;		
@@ -132,6 +142,16 @@ void SendUdpMessage(int sensor, char type, int senStatus) {
   Udp.endPacket();
 }
 
+void SendUdpReset() {
+
+  char msg[6];
+  String s = "C"+ String(currentDevice) + "SUPPR";	
+  s.toCharArray(msg, 6);
+  
+  Udp.beginPacket(server, listeningPort);
+  Udp.write(msg);
+  Udp.endPacket();
+}
 
 void setup() {
 
@@ -149,34 +169,25 @@ void setup() {
 
   // stampa logo aziendale
   lcd.setCursor(0,0);            
-  lcd.print("LOTTO GIANNI   ");
+  lcd.print("LOTTO     GIANNI");
   lcd.setCursor(0,1);
-  lcd.print("IMP. ELETTRICI ");
+  lcd.print("IMP.   ELETTRICI");
   delay (5000);
 
   // ciclo per la dichiarazione degli ingressi di stato delle porte
-  for (int i=0; i<12; i++)         
+  for (int i=0; i<senForDev; i++)         
     pinMode (DoorPin[i], INPUT);
 
   // ciclo per la dichiarazione degli ingressi ausiliari
-  for (int i=0; i<4; i++)          
+  for (int i=0; i<3; i++)          
     pinMode (auxPin[i], INPUT);
 
   // impostazione del pin di controllo della sirena
   pinMode (38, OUTPUT);
 
-
-  /*
-  IN TEORIA QUESTO SERVE SOLO SU MASTER
-   
-   //inizializzazione dei vettori di stati a spento
-   for(int i = 0; i < 12; i++)     
-   	DoorStatus[i] = false;
-   for(int i = 0; i < 4; i++)
-   	AuxStatus[i] = false;	
-   	
-   */
-
+  
+  // impostazione del pin chiave
+  pinMode (37, INPUT);
 
   t.every(2000, ProgressDisplay);
 
@@ -187,47 +198,56 @@ void setup() {
 void loop() {
   
   t.update();
-
-  for (int i=0; i<12; i++)
+	
+  int tmpKey = digitalRead(37);
+  if(tmpKey)
   {
-    int Tmp = digitalRead(DoorPin[i]);
-    if (Tmp != DoorValue[i])
-    {
-      if(Tmp == HIGH)
-      {
-        //se la sirena è già accesa resetta il timer della sirena
-        //fermandolo e ricreandolo
-        if(RingTone != -1)
-          t.stop(RingTone);
-
-        //imposta il pin collegato alla sirena ad 1 Logico per 5 minuti
-        RingTone = t.pulse(38, 5 * 60 *1000, HIGH);
-      }
-      SendUdpMessage(i, 'S', Tmp);
-
-    }
-
+	if(tmpKey != blocked)
+	{
+	  SendUdpReset();
+	}
   }
-
-  for (int i=0; i<4; i++)
+  else
   {
-    int Tmp = digitalRead(auxPin[i]);  
-    if (Tmp != auxValue[i])
-    {
-      if(Tmp == HIGH)
+    for (int i=0; i<senForDev; i++)
+    { 
+      int Tmp = digitalRead(DoorPin[i]);
+      if (Tmp != DoorValue[i])
       {
-        //se la sirena è già accesa resetta il timer della sirena
-        //fermandolo e ricreandolo
-        if(RingTone != -1)
-          t.stop(RingTone);
+        if(Tmp == HIGH)
+        {
+          //se la sirena è già accesa resetta il timer della sirena
+          //fermandolo e ricreandolo
+          if(RingTone != -1)
+            t.stop(RingTone);
 
-        //imposta il pin collegato alla sirena ad 1 Logico per 5 minuti
-        RingTone = t.pulse(38, 5 * 60 * 1000, HIGH);
+          // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
+          digitalWrite(38, HIGH);
+          RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
+			
+        }
+        SendUdpMessage(i, 'S', Tmp);
       }
-      SendUdpMessage(i, 'A', Tmp);
+    }  
+  
+    for (int i=0; i<3; i++)
+    {
+      int Tmp = digitalRead(auxPin[i]);  
+      if (Tmp != auxValue[i])
+      {
+        if(Tmp == HIGH)
+        {
+          //se la sirena è già accesa resetta il timer della sirena
+          //fermandolo e ricreandolo
+          if(RingTone != -1)
+            t.stop(RingTone);
+
+          //imposta il pin collegato alla sirena ad 1 logico per 5 minuti
+          RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
+        }
+        SendUdpMessage(i, 'A', Tmp);
+      }
     }
   }
+  blocked = tmpKey;
 }
-
-
-

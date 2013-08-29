@@ -47,7 +47,7 @@ EthernetUDP Udp;
  	e spegne la sirena impostando il pin 38 a 0 logico
  */
 void TurnOffAlert() {
-  digitalWrite(38, LOW);
+  digitalWrite(2, LOW);
   t.stop(RingTone);
   RingTone = -1;
 }
@@ -264,8 +264,8 @@ void setup() {
   devIndexDoor = senIndexDoor = devIndexAux = senIndexAux = 0;
 
   // impostazione del pin di output collegato alla sirena
-  pinMode (38, OUTPUT);
-  digitalWrite(38, LOW);
+  pinMode (2, OUTPUT);
+  digitalWrite(2, LOW);
 
   // finta progressbar all'avvio
   lcd.setCursor(0,1);
@@ -314,7 +314,7 @@ void loop() {
         t.stop(RingTone);
 
       // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
-      digitalWrite(38, HIGH);
+      digitalWrite(2, HIGH);
       RingTone = t.after(3 * 60 * 1000, TurnOffAlert);
     }
 

@@ -12,7 +12,7 @@
 
 // Definizione delle costanti
 #define senForDev 12
-#define currentDevice 1
+#define currentDevice 0
 
 // timer manager
 Timer t;
@@ -30,8 +30,8 @@ boolean blocked = false;
 
 // Definizione componenti ethernet
 // mac locale: 0xEF   -   first remote device .101
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xD2 };
-IPAddress ip(192, 168, 1, 102), server(192, 168, 1, 100);
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xD1 };
+IPAddress ip(192, 168, 1, 101), server(192, 168, 1, 100);
 unsigned int listeningPort = 1701;
 EthernetUDP Udp;
 char udpMsg[UDP_TX_PACKET_MAX_SIZE];
@@ -169,7 +169,7 @@ void SendUdpReset() {
     DoorValue[i] = 0;
 
   for (int i=0; i<3; i++)         
-    auxValue[i] = 0;
+   auxValue[i] = 0;
 
 
   char msg[8] = "\0";

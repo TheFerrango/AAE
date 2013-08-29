@@ -47,8 +47,9 @@ EthernetUDP Udp;
  	e spegne la sirena impostando il pin 38 a 0 logico
  */
 void TurnOffAlert() {
-  RingTone = -1;
   digitalWrite(38, LOW);
+  t.stop(RingTone);
+  RingTone = -1;
 }
 
 
@@ -110,7 +111,6 @@ void parseInputSeq(String s) {
   {
     if(!execReset(s))
     {
-      t.stop(RingTone);
       TurnOffAlert();
     }
   }
@@ -201,7 +201,7 @@ void UpdateDoors() {
       lcd.print("Cen ");
       lcd.print(devIndexDoor);
       lcd.print(" - porta ");
-      lcd.print(senIndexDoor);	      
+      lcd.print(senIndexDoor+1);	      
       found = true;			
     }
 

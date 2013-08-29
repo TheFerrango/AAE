@@ -43,8 +43,9 @@ char udpMsg[UDP_TX_PACKET_MAX_SIZE];
  	e spegne la sirena impostando il pin 38 a 0 logico
  */
 void TurnOffAlert() {
-  RingTone = -1;
   digitalWrite(38, LOW);
+  t.stop(RingTone);
+  RingTone = -1;
 }
 
 
@@ -64,7 +65,7 @@ void UpdateDoors() {
       lcd.print("                ");
       lcd.setCursor(0,0);   
       lcd.print("EVENTO PORTA  ");
-      lcd.print(senIndexDoor);	
+      lcd.print(senIndexDoor+1);	
 
       found = true;			
     }
@@ -239,6 +240,7 @@ void loop() {
     if(tmpKey != blocked)
     {
       SendUdpReset();
+      TurnOffAlert();
     }
     lcd.clear();
     lcd.setCursor(0,0);

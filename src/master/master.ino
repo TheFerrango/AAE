@@ -253,7 +253,7 @@ void setup() {
   // inizializzazione delle matrici di stati a spento
   for(int i = 0; i < nDevices; i++)
   {
-    for(int j = 0; j < 12; j++)
+    for(int j = 0; j < senForDev; j++)
       masterDoorStatus[i][j] = false;
     for(int j = 0; j < 4; j++)
       masterAuxStatus[i][j] = false;
@@ -275,7 +275,7 @@ void setup() {
   }
 
   // avvio del timer per l'aggiornamento del display
-  t.every(5000, ProgressDisplay);
+  t.every(2000, ProgressDisplay);
 
   // stampa del logo aziendale
   lcd.setCursor(0,0);            
@@ -314,7 +314,7 @@ void loop() {
 
       // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
       digitalWrite(38, HIGH);
-      RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
+      RingTone = t.after(3 * 60 * 1000, TurnOffAlert);
     }
 
     // decodifica del messaggio ricevuto per permettere la

@@ -221,7 +221,7 @@ void setup() {
   // impostazione del pin chiave
   pinMode (37, INPUT); 
 
-  t.every(5000, ProgressDisplay);
+  t.every(2000, ProgressDisplay);
 
 }
 
@@ -264,12 +264,12 @@ void loop() {
 
           // imposta il pin collegato alla sirena ad 1 logico per 5 minuti
           digitalWrite(38, HIGH);
-          RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
-
+          RingTone = t.after(3 * 60 * 1000, TurnOffAlert);
+          SendUdpMessage(i, 'S', Tmp);
+          DoorValue[i] = Tmp;
         }
 
-        SendUdpMessage(i, 'S', Tmp);
-        DoorValue[i] = Tmp;
+        
       }
     }  
 
@@ -287,12 +287,10 @@ void loop() {
             t.stop(RingTone);
 
           //imposta il pin collegato alla sirena ad 1 logico per 5 minuti
-          RingTone = t.after(5 * 60 * 1000, TurnOffAlert);
-
-        }		
-        
-        SendUdpMessage(i, 'A', Tmp);        
-        auxValue[i] = Tmp;
+          RingTone = t.after(3 * 60 * 1000, TurnOffAlert);              
+          SendUdpMessage(i, 'A', Tmp);        
+          auxValue[i] = Tmp;
+        }
       }	  
     }
   }

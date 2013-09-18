@@ -19,6 +19,7 @@ Timer t;
 
 //  define lcd pin, status doors, input pins, badenia, switch pins 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+boolean isSenValid[12];
 int DoorValue[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 int DoorPin[12] = { 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
 int auxPin[3] = { 34, 35, 36 };
@@ -46,6 +47,17 @@ void TurnOffAlert() {
   digitalWrite(38, LOW);
   t.stop(RingTone);
   RingTone = -1;
+}
+
+
+/*
+	reimposta lo stato dei sensori esclusi temporaneamente 
+	come validi, permettendone la lettura
+*/
+void EnableTempDoor()
+{
+	isSenValid[1] = true;
+	isSenValid[2] = true;
 }
 
 
@@ -214,6 +226,10 @@ void setup() {
   lcd.setCursor(0,1);
   lcd.print("IMP.   ELETTRICI");  
 
+  // ciclo per l'abilitazione della lettura degli ingressi di stato delle porte
+  for (int i=0; i<senForDev; i++)         
+    isSenValid[i] = true;
+  
   // ciclo per la dichiarazione degli ingressi di stato delle porte
   for (int i=0; i<senForDev; i++)         
     pinMode (DoorPin[i], INPUT);  
@@ -258,11 +274,11 @@ void loop() {
   }
   else
   {
-    for (int i=0; i<12; i++)
+    for (int i=0; i<10; i++)
     { 	
       int Tmp = digitalRead(DoorPin[i]);
 
-      if (Tmp != DoorValue[i])
+      if (isSenValid[i] && Tmp != DoorValue[i])
       {
         if(Tmp == HIGH)
         {
@@ -277,10 +293,31 @@ void loop() {
           SendUdpMessage(i, 'S', Tmp);
           DoorValue[i] = Tmp;
         }
-
-        
       }
-    }  
+    }
+
+	for(int i = 10; i < senForDev; i++)
+	{
+	  int Tmp = digitalRead(DoorPin[i]);
+
+      if (Tmp != DoorValue[i])
+      {
+        if(Tmp == HIGH)
+        {
+          if(i == 10)
+		  {
+			  isSenValid[1] = false;
+			  isSenValid[2] = false;
+			  t.after(30*1000, EnableTempDoor);
+		  }
+		  else
+		  {
+			  isSenValid[0] = !isSenValid[0];
+			  isSenValid[9] = !isSenValid[9];
+		  }
+        }		
+      }
+	}
 
     for (int i=0; i<3; i++)
     {

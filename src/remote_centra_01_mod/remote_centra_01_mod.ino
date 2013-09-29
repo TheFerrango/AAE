@@ -35,8 +35,8 @@ boolean blocked = false;
 
 // Definizione componenti ethernet
 // mac locale: 0xEF   -   first remote device .101
-byte mac[] = { 
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xD2 };
+//byte mac[] = {   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xD2 };
+byte mac[] = {0x90, 0xa2, 0xda, 0x0e, 0xb2, 0x32};
 IPAddress ip(192, 168, 1, 102), server(192, 168, 1, 100);
 unsigned int listeningPort = 1701;
 EthernetUDP Udp;
@@ -228,20 +228,24 @@ void setup() {
   for (int i=0; i<senForDev; i++)
   {
     pinMode (DoorPin[i], INPUT);
-    digitalWrite(DoorPin[i], HIGH);
+    //digitalWrite(DoorPin[i], HIGH);
   }
 
   // ciclo per la dichiarazione degli ingressi ausiliari
-  for (int i=0; i<3; i++)          
+  for (int i=0; i<3; i++)
+  {
     pinMode (auxPin[i], INPUT);
+  //  digitalWrite(auxPin[i], HIGH);
+  }
 
   // impostazione del pin di controllo della sirena
   pinMode (38, OUTPUT);
-  digitalWrite(38, LOW);
+ // digitalWrite(38, LOW);
 
   // impostazione del pin chiave
   pinMode (37, INPUT); 
 
+//  digitalWrite(37, HIGH);
   t.every(2000, ProgressDisplay);
 
 }
